@@ -1,5 +1,6 @@
 package com.assignment.training;
 
+import com.assignment.PathProperties;
 import com.assignment.mlapi.model.MLModel;
 import com.assignment.training.model.TrainingModel;
 import com.assignment.training.model.TrainingInfoRepository;
@@ -18,7 +19,7 @@ import java.util.Map;
 public class Training
 {
     MLModel mlModel;
-    String filePath = "/Users/shashwat/Documents/nanonets/train.py";
+    String filePath = PathProperties.config.getProperty("training_file_path");
 
 
     public Training(MLModel mlModel)

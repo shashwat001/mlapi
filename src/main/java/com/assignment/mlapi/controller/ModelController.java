@@ -111,22 +111,6 @@ public class ModelController
 
     }
 
-    private void saveFile(Optional<MLModel> model, MultipartFile file) throws IOException
-    {
-        byte[] bytes = file.getBytes();
-        Path path = Paths.get(model.get().getImagesPath() + "/" + file.getOriginalFilename());
-        Files.createDirectories(path.getParent());
-        Files.write(path, bytes);
-    }
-
-    private void validateFilesList(@RequestParam("files") MultipartFile[] files) throws MLApiException
-    {
-        if(files.length == 0)
-        {
-            throw new MLApiException("No file found.");
-        }
-    }
-
     @RequestMapping(path = "{id}/train",
             method = RequestMethod.POST)
     public TrainingModel trainModel(@PathVariable(value = "id") Long modelId,
@@ -135,7 +119,7 @@ public class ModelController
                                     @RequestParam("steps") Integer steps) throws IOException, MLApiException
     {
         Optional<MLModel> model = mlModelService.find(modelId);
-        if(model.isPresent())
+        if(model.isPresent() && model.get().doesTrainingImagesExist())
         {
             Training training = new Training(model.get());
             TrainingModel trainingModel = trainingService.saveTrainingInfo(training.train(new TrainingParams(learningRate, layers, steps)));
@@ -143,17 +127,17 @@ public class ModelController
         }
         else
         {
-            throw new MLApiException("Model does not exist.");
+            throw new MLApiException("Either model with given id or training images for model do not exist.");
         }
 
     }
 
     @RequestMapping(path = "{id}/trainall",
             method = RequestMethod.POST)
-    public TrainingModel trainModel(@PathVariable(value = "id") Long modelId) throws MLApiException
+    public TrainingModel trainModel(@PathVariable(value = "id") Long modelId) throws MLApiException, IOException
     {
         Optional<MLModel> model = mlModelService.find(modelId);
-        if(model.isPresent())
+        if(model.isPresent() && model.get().doesTrainingImagesExist())
         {
             try
             {
@@ -177,7 +161,7 @@ public class ModelController
         }
         else
         {
-            throw new MLApiException("Model does not exist.");
+            throw new MLApiException("Either model with given id or training images for model do not exist.");
         }
     }
 
@@ -199,4 +183,21 @@ public class ModelController
         }
         return model;
     }
+
+    private void saveFile(Optional<MLModel> model, MultipartFile file) throws IOException
+    {
+        byte[] bytes = file.getBytes();
+        Path path = Paths.get(model.get().getImagesPath() + "/" + file.getOriginalFilename());
+        Files.createDirectories(path.getParent());
+        Files.write(path, bytes);
+    }
+
+    private void validateFilesList(@RequestParam("files") MultipartFile[] files) throws MLApiException
+    {
+        if(files.length == 0)
+        {
+            throw new MLApiException("No file found.");
+        }
+    }
+
 }
