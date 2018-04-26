@@ -9,6 +9,7 @@ import com.assignment.training.TrainingConstants;
 import com.assignment.training.TrainingParams;
 import com.assignment.training.model.TrainingModel;
 import com.assignment.training.model.TrainingService;
+import org.apache.tomcat.util.buf.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +19,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.StringJoiner;
 
@@ -55,81 +58,73 @@ public class ModelController
     @RequestMapping(path = "{id}/upload")
     public String updateModel(
             @PathVariable(value = "id") Long modelId,
-            @RequestParam("file") MultipartFile file
-    ) throws MLApiException
+            @RequestParam("file") MultipartFile file) throws MLApiException
     {
-        if (file.isEmpty())
-        {
-            throw new MLApiException("File invalid or empty.");
-        }
-
-        Optional<MLModel> model = mlModelService.find(modelId);
-
-        if(!model.isPresent())
-        {
-            throw new MLApiException("Model does not exist.");
-        }
-
-        byte[] bytes = new byte[0];
+        validateFile(file);
+        Optional<MLModel> model = getModel(modelId);
         try
         {
-            bytes = file.getBytes();
-            Path path = Paths.get(model.get().getImagesPath() + "/" + file.getOriginalFilename());
-            Files.createDirectories(path.getParent());
-            Files.write(path, bytes);
+            saveFile(model, file);
         }
         catch (IOException e)
         {
             throw new MLApiException("Error in uploading file");
         }
-
         return "File uploaded successfully";
     }
 
     @RequestMapping(path = "{id}/uploadall")
     public String updateModel(@PathVariable(value = "id") Long modelId,
-                              @RequestParam("files") MultipartFile[] files)
+                              @RequestParam("files[]") MultipartFile[] files) throws MLApiException
     {
+        Optional<MLModel> model = getModel(modelId);
+        validateFilesList(files);
 
-        StringJoiner sj = new StringJoiner(" , ");
+        List<String> erroneousFiles = new ArrayList<>();
 
         for (MultipartFile file : files)
         {
-
             if (file.isEmpty())
             {
-                continue; //next pls
+                erroneousFiles.add(file.getOriginalFilename());
             }
 
             try
             {
-
-                byte[] bytes = file.getBytes();
-                Path path = Paths.get(UPLOADED_FOLDER + file.getOriginalFilename());
-                Files.write(path, bytes);
-
+                saveFile(model, file);
             }
             catch (IOException e)
             {
-                e.printStackTrace();
+                erroneousFiles.add(file.getOriginalFilename());
             }
 
         }
 
-        String uploadedFileName = sj.toString();
-        if (StringUtils.isEmpty(uploadedFileName))
+        if(erroneousFiles.isEmpty())
         {
-            redirectAttributes.addFlashAttribute("message",
-                    "Please select a file to upload");
+            return "Files uploaded successfully";
         }
         else
         {
-            redirectAttributes.addFlashAttribute("message",
-                    "You successfully uploaded '" + uploadedFileName + "'");
+            return "Following files could not be uploaded: " + StringUtils.join(erroneousFiles, ',');
         }
 
-        return "redirect:/uploadStatus";
+    }
 
+    private void saveFile(Optional<MLModel> model, MultipartFile file) throws IOException
+    {
+        byte[] bytes = file.getBytes();
+        Path path = Paths.get(model.get().getImagesPath() + "/" + file.getOriginalFilename());
+        Files.createDirectories(path.getParent());
+        Files.write(path, bytes);
+    }
+
+    private void validateFilesList(@RequestParam("files") MultipartFile[] files) throws MLApiException
+    {
+        if(files.length == 0)
+        {
+            throw new MLApiException("No file found.");
+        }
     }
 
     @RequestMapping(path = "{id}/train",
@@ -184,6 +179,24 @@ public class ModelController
         {
             throw new MLApiException("Model does not exist.");
         }
+    }
 
+    private void validateFile(@RequestParam("file") MultipartFile file) throws MLApiException
+    {
+        if (file.isEmpty())
+        {
+            throw new MLApiException("File invalid or empty.");
+        }
+    }
+
+    private Optional<MLModel> getModel(Long modelId) throws MLApiException
+    {
+        Optional<MLModel> model = mlModelService.find(modelId);
+
+        if(!model.isPresent())
+        {
+            throw new MLApiException("Model does not exist.");
+        }
+        return model;
     }
 }
